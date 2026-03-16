@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.eggs
+dist
+build
+
+# Données d'entraînement (ne doivent PAS être dans l'image)
+data/
+custom_dataset/
+
+# Scripts d'entraînement (pas nécessaires en inférence)
+train.py
+data_preparation.py
+export_onnx.py
+
+# Environnements virtuels
+.venv
+venv
+env
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+README.md
+docs/
+
+# Artifacts
+*.md
+!requirements*.txt
