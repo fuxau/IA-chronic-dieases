@@ -23,6 +23,7 @@ import numpy as np
 import onnxruntime as ort
 from PIL import Image
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -223,6 +224,113 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# ──────────────────────────────────────────────
+# Endpoints
+# ──────────────────────────────────────────────
+@app.get("/", response_class=HTMLResponse, tags=["System"])
+async def root_ui():
+    """Page web (UI) simple pour tester l'API depuis le navigateur."""
+    return """
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <title>IA Food Recognition - Test API</title>
+        <style>
+            body { font-family: -apple-system, system-ui, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; background: #f9fafb; color: #1f2937; }
+            .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+            h1 { font-size: 24px; margin-bottom: 20px; text-align: center; }
+            .upload-area { border: 2px dashed #d1d5db; border-radius: 8px; padding: 40px; text-align: center; cursor: pointer; margin-bottom: 20px; transition: border 0.3s; }
+            .upload-area:hover { border-color: #3b82f6; }
+            button { width: 100%; padding: 12px; background: #3b82f6; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.3s; }
+            button:hover { background: #2563eb; }
+            #preview { max-width: 100%; border-radius: 8px; margin-top: 20px; display: none; }
+            #result { margin-top: 20px; padding: 15px; background: #f3f4f6; border-radius: 8px; font-family: monospace; white-space: pre-wrap; display: none; }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h1>🍽️ Test Reconnaissance Alimentaire</h1>
+            <input type="file" id="fileInput" accept="image/*" style="display: none;">
+            
+            <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                📷 <br><br><b>Cliquez ici</b> pour sélectionner une photo de plat
+            </div>
+            
+            <img id="preview" src="" alt="Aperçu">
+            
+            <button id="submitBtn" style="display: none; margin-top: 20px;">Analyser l'image</button>
+            
+            <div id="result"></div>
+        </div>
+
+        <script>
+            const fileInput = document.getElementById('fileInput');
+            const preview = document.getElementById('preview');
+            const submitBtn = document.getElementById('submitBtn');
+            const resultDiv = document.getElementById('result');
+            let selectedFile = null;
+
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    selectedFile = e.target.files[0];
+                    preview.src = URL.createObjectURL(selectedFile);
+                    preview.style.display = 'block';
+                    submitBtn.style.display = 'block';
+                    resultDiv.style.display = 'none';
+                }
+            });
+
+            submitBtn.addEventListener('click', async () => {
+                if (!selectedFile) return;
+                
+                submitBtn.disabled = true;
+                submitBtn.innerText = '⏳ Analyse en cours...';
+                
+                const formData = new FormData();
+                formData.append('file', selectedFile);
+
+                try {
+                    const response = await fetch('/predict', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        resultDiv.innerHTML = `<span style="color:red">Erreur HTTP ${response.status}:</span>\n${JSON.stringify(data, null, 2)}`;
+                    } else {
+                        const confidence = (data.confidence * 100).toFixed(1);
+                        const nut = data.nutrition;
+                        
+                        resultDiv.innerHTML = `
+<b>Aliment :</b> ${data.label}
+<b>Confiance :</b> ${confidence}%
+
+<b>🥗 Pour 100g :</b>
+- Calories  : ${nut.calories} kcal
+- Protéines : ${nut.protein_g} g
+- Glucides  : ${nut.carbs_g} g
+- Lipides   : ${nut.fat_g} g
+- Fibres    : ${nut.fiber_g} g
+
+<b>⏱️ Inférence:</b> ${data.inference_time_ms} ms
+                        `.trim();
+                    }
+                } catch (error) {
+                    resultDiv.innerHTML = `<span style="color:red">Erreur réseau :</span> ${error.message}`;
+                } finally {
+                    resultDiv.style.display = 'block';
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = 'Analyser une autre image';
+                }
+            });
+        </script>
+    </body>
+    </html>
+    """
 
 # ──────────────────────────────────────────────
 # Endpoints
