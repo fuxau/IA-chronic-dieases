@@ -10,6 +10,8 @@ Endpoints :
 L'inférence utilise ONNX Runtime pour des performances optimales (< 3s).
 """
 
+from __future__ import annotations
+
 import io
 import json
 import logging

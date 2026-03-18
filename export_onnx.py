@@ -9,6 +9,8 @@ export_onnx.py — Export du modèle PyTorch entraîné au format ONNX.
 5. Exporter les labels de classes
 """
 
+from __future__ import annotations
+
 import json
 import logging
 

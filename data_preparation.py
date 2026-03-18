@@ -6,18 +6,59 @@ d'aliments supplémentaires. Applique les augmentations et crée les
 DataLoaders train/val.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from pathlib import Path
 
 import torch
-from torch.utils.data import DataLoader, ConcatDataset, random_split
+from torch.utils.data import DataLoader, ConcatDataset, Dataset, random_split
 from torchvision import datasets, transforms
+from PIL import Image, UnidentifiedImageError
 
 import config
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
+
+
+# ──────────────────────────────────────────────
+# Wrapper robuste pour images corrompues
+# ──────────────────────────────────────────────
+class SafeDataset(Dataset):
+    """
+    Wrapper qui intercepte les images corrompues dans un dataset.
+
+    Food-101 contient quelques fichiers corrompus (ex: ramen/3721099.jpg,
+    tiramisu/1321095.jpg). Au lieu de crasher, ce wrapper :
+      1. Tente de charger l'image normalement
+      2. Si l'image est corrompue → retourne une autre image
+      3. Log les fichiers problématiques
+    """
+
+    def __init__(self, dataset: Dataset):
+        self.dataset = dataset
+        self.corrupted_indices: set = set()
+
+    def __len__(self) -> int:
+        return len(self.dataset)
+
+    def __getitem__(self, idx: int):
+        try:
+            return self.dataset[idx]
+        except (UnidentifiedImageError, OSError, IOError, Exception) as e:
+            if idx not in self.corrupted_indices:
+                self.corrupted_indices.add(idx)
+                logger.warning(f"⚠️  Image corrompue (index {idx}), remplacée : {e}")
+            # Essayer les images suivantes
+            for offset in range(1, 100):
+                fallback_idx = (idx + offset) % len(self.dataset)
+                try:
+                    return self.dataset[fallback_idx]
+                except Exception:
+                    continue
+            raise RuntimeError(f"Impossible de trouver une image valide autour de l'index {idx}")
 
 
 # ──────────────────────────────────────────────
@@ -74,7 +115,7 @@ def load_food101(split: str = "train", transform=None) -> datasets.Food101:
         download=True,
     )
     logger.info(f"  → {len(dataset)} images chargées, {len(dataset.classes)} classes")
-    return dataset
+    return SafeDataset(dataset), dataset.classes
 
 
 # ──────────────────────────────────────────────
@@ -183,12 +224,12 @@ def create_dataloaders(
     train_transform = get_train_transforms()
     val_transform = get_val_transforms()
 
-    food101_train = load_food101(split="train", transform=train_transform)
-    food101_val = load_food101(split="test", transform=val_transform)
+    food101_train, food101_classes = load_food101(split="train", transform=train_transform)
+    food101_val, _ = load_food101(split="test", transform=val_transform)
 
     train_datasets = [food101_train]
     val_datasets = [food101_val]
-    all_classes = list(food101_train.classes)
+    all_classes = list(food101_classes)
 
     # --- Custom dataset ---
     custom_classes = None
@@ -231,12 +272,15 @@ def create_dataloaders(
     logger.info(f"Dataset final : {len(combined_train)} train / {len(combined_val)} val / {num_classes} classes")
 
     # --- DataLoaders ---
+    # Détecter le device pour pin_memory (non supporté sur MPS)
+    use_pin_memory = torch.cuda.is_available()
+
     train_loader = DataLoader(
         combined_train,
         batch_size=config.BATCH_SIZE,
         shuffle=True,
         num_workers=config.NUM_WORKERS,
-        pin_memory=True,
+        pin_memory=use_pin_memory,
         drop_last=True,
     )
 
@@ -245,7 +289,7 @@ def create_dataloaders(
         batch_size=config.BATCH_SIZE,
         shuffle=False,
         num_workers=config.NUM_WORKERS,
-        pin_memory=True,
+        pin_memory=use_pin_memory,
     )
 
     return train_loader, val_loader, class_to_idx, num_classes

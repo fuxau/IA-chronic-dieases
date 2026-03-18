@@ -5,6 +5,8 @@ Associe chaque label alimentaire (Food-101 + custom) à ses données
 nutritionnelles : kcal/100g, macronutriments et portion standard.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Optional
 

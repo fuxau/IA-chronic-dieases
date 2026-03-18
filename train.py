@@ -6,6 +6,8 @@ Stratégie en 2 phases :
   Phase 2 (époques 6→15) : Derniers blocs du backbone dégelés pour affinage.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import time
@@ -200,11 +202,18 @@ def validate(
 # ──────────────────────────────────────────────
 def train():
     """Pipeline d'entraînement complet."""
-    # Device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Device (CUDA > MPS > CPU)
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
     logger.info(f"Device : {device}")
     if device.type == "cuda":
         logger.info(f"  GPU : {torch.cuda.get_device_name(0)}")
+    elif device.type == "mps":
+        logger.info(f"  GPU : Apple Silicon (MPS)")
 
     # Dataset
     train_loader, val_loader, class_to_idx, num_classes = create_dataloaders()
