@@ -19,13 +19,15 @@ env/
 ENV/
 
 # ──────────────────────────────────────────────
-# Données & Modèles (trop volumineux pour GitHub)
+# Données / Datasets (à ne pas versionner)
 # ──────────────────────────────────────────────
 data/
-models/*.pth
-models/*.onnx
-*.pth
-*.onnx
+custom_dataset/
+
+# ──────────────────────────────────────────────
+# Modèles IA
+# (versionnés volontairement)
+# ──────────────────────────────────────────────
 
 # ──────────────────────────────────────────────
 # IDE & OS
